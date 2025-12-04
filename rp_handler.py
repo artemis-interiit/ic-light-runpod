@@ -363,38 +363,33 @@ def process_relight(input_fg, input_bg, prompt, image_width=512, image_height=64
 def handler(event):
     """
     RunPod handler function
-    
-    Expected input format:
-    {
-        "input": {
-            "foreground_image": "base64_encoded_image",
-            "background_image": "base64_encoded_image" (optional),
-            "prompt": "text prompt",
-            "bg_source": "grey|left|right|top|bottom|upload" (default: "grey"),
-            "image_width": 512,
-            "image_height": 640,
-            "num_samples": 1,
-            "seed": 12345,
-            "steps": 20,
-            "cfg_scale": 7.0,
-            "highres_scale": 1.5,
-            "highres_denoise": 0.5,
-            "added_prompt": "best quality",
-            "negative_prompt": "lowres, bad anatomy, bad hands, cropped, worst quality"
-        }
-    }
     """
     try:
+        if 'input' not in event:
+            return {"status": "error", "message": "Missing 'input' field in request"}
+            
         input_data = event['input']
         
+        # Validate required fields
+        if 'foreground_image' not in input_data:
+            return {"status": "error", "message": "Missing required field: 'foreground_image'"}
+        
         # Decode images
-        fg_image = decode_base64_image(input_data['foreground_image'])
+        try:
+            fg_image = decode_base64_image(input_data['foreground_image'])
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to decode foreground_image: {str(e)}"}
         
         bg_source = input_data.get('bg_source', 'grey')
-        if bg_source == 'upload' and 'background_image' in input_data:
-            bg_image = decode_base64_image(input_data['background_image'])
-        else:
-            bg_image = None
+        bg_image = None
+        
+        if bg_source == 'upload':
+            if 'background_image' not in input_data:
+                return {"status": "error", "message": "bg_source is 'upload' but 'background_image' is missing"}
+            try:
+                bg_image = decode_base64_image(input_data['background_image'])
+            except Exception as e:
+                return {"status": "error", "message": f"Failed to decode background_image: {str(e)}"}
         
         # Get parameters
         prompt = input_data.get('prompt', 'beautiful lighting')
@@ -426,9 +421,11 @@ def handler(event):
         }
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "status": "error",
-            "message": str(e)
+            "message": f"Internal processing error: {str(e)}"
         }
 
 if __name__ == "__main__":
